@@ -216,5 +216,3 @@ This project was created as part of the AI Intern hiring assignment for Kalpit P
 This project is created for educational and evaluation purposes as part of an internship assignment.
 
 ---
-
-**Built with ❤️ using LangChain, ChromaDB, and Ollama**
