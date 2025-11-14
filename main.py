@@ -12,13 +12,15 @@ from langchain.chains import RetrievalQA
 # ---------------------------------------------------------
 # LOGGING CONFIGURATION
 # ---------------------------------------------------------
+# Configure logging to write logs to app.log and also show them in console
 logging.basicConfig(
     filename="app.log",
-    filemode="a",
-    level=logging.INFO,
+    filemode="a",         # Append mode
+    level=logging.INFO,   # Logging level
     format="%(asctime)s — [%(levelname)s] — %(message)s"
 )
 
+# Create console handler (prints logs on screen)
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
 console.setFormatter(logging.Formatter("%(message)s"))
@@ -29,9 +31,14 @@ logging.getLogger().addHandler(console)
 # BUILD VECTOR DATABASE
 # ---------------------------------------------------------
 def build_vector_store():
-    """Create Chroma vector store from speech.txt on first run."""
+    """
+    Create a Chroma vector store on first run.
+    Loads speech.txt, splits it into chunks, embeds using HuggingFace,
+    and stores embeddings locally.
+    """
     logging.info("Starting first-time vector store creation.")
 
+    # Load the text file
     try:
         logging.info("Loading speech.txt...")
         loader = TextLoader("speech.txt")
@@ -40,20 +47,23 @@ def build_vector_store():
         logging.error(f"Failed to load speech.txt — {e}")
         raise e
 
+    # Split into smaller chunks for better retrieval
     logging.info("Splitting text into chunks...")
     splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     chunks = splitter.split_documents(documents)
     logging.info(f"Total chunks created: {len(chunks)}")
 
+    # Create embeddings using MiniLM model
     logging.info("Creating embeddings (all-MiniLM-L6-v2)...")
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
+    # Store embeddings inside ChromaDB
     logging.info("Storing embeddings in ChromaDB...")
     try:
         vectorstore = Chroma.from_documents(
             chunks,
             embedding=embeddings,
-            persist_directory="db"
+            persist_directory="db"   # This folder stores your DB
         )
         vectorstore.persist()
         logging.info("Vector store successfully created & persisted.")
@@ -68,9 +78,12 @@ def build_vector_store():
 # LOAD EXISTING VECTOR DATABASE
 # ---------------------------------------------------------
 def load_vector_store():
-    """Load an existing Chroma vector store."""
+    """
+    Load an existing Chroma database from the 'db' folder.
+    """
     logging.info("Loading existing Chroma vector database.")
 
+    # Use the same embedding model for consistency
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
     try:
@@ -90,7 +103,9 @@ def load_vector_store():
 # SELECT DATABASE (LOAD OR BUILD)
 # ---------------------------------------------------------
 def get_vector_store():
-    """Check if db exists, otherwise create it."""
+    """
+    If vector DB exists, load it. Otherwise, build it.
+    """
     if os.path.exists("db"):
         logging.info("VectorDB folder found — loading existing DB.")
         return load_vector_store()
@@ -103,10 +118,15 @@ def get_vector_store():
 # MAIN PROGRAM LOOP
 # ---------------------------------------------------------
 def main():
+    """
+    Main function for running the Q&A CLI app.
+    """
     logging.info("AmbedkarGPT initialized.")
+
     print("\nAmbedkarGPT — Command-Line Q&A System")
     print("Ask questions based on the 'Annihilation of Caste' speech.\n")
 
+    # Load or create vector DB
     vectorstore = get_vector_store()
     retriever = vectorstore.as_retriever()
 
@@ -114,18 +134,19 @@ def main():
     logging.info("Loading LLM model: mistral (via Ollama)")
     llm = Ollama(model="mistral")
 
-    # Build RetrievalQA chain
+    # Create RetrievalQA chain
     logging.info("Setting up RetrievalQA chain.")
     qa = RetrievalQA.from_chain_type(
         llm=llm,
         retriever=retriever,
-        chain_type="stuff"
+        chain_type="stuff"   # Simple Q&A method
     )
 
-    # CLI loop
+    # CLI loop for user interaction
     while True:
         query = input("Your question (or type 'exit'): ")
 
+        # Exit condition
         if query.lower() == "exit":
             logging.info("User requested exit. Shutting down.")
             print("Exiting... Goodbye.")
@@ -133,6 +154,7 @@ def main():
 
         logging.info(f"User query: {query}")
 
+        # Generate answer
         try:
             answer = qa.run(query)
             logging.info("Answer generated successfully.")
@@ -140,10 +162,12 @@ def main():
             logging.error(f"Error generating answer — {e}")
             answer = "Sorry, something went wrong while generating the answer."
 
+        # Display answer
         print("\nAnswer:")
         print(answer)
         print("\n" + "-" * 50 + "\n")
 
 
+# Run only if executed directly
 if __name__ == "__main__":
     main()
